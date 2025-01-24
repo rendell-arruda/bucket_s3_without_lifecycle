@@ -1,7 +1,8 @@
 import boto3
+session = boto3.Session(profile_name='sandbox')
 
 def get_buckets_without_lifecycle():
-    s3 = boto3.client('s3')
+    s3 = session.client('s3')
     buckets_without_lifecycle = []
 
     try:
@@ -34,5 +35,5 @@ else:
     print("Todos os buckets têm política de lifecycle configurada.")
     
     
-if __name__ == '__main__':
-    get_buckets_without_lifecycle()
+# if __name__ == '__main__':
+#     get_buckets_without_lifecycle()
