@@ -1,88 +1,118 @@
-# Verificador de Políticas de Lifecycle em Buckets S3
+# 🛡️ Verificador de Políticas de Lifecycle em Buckets S3 – Multi-Conta
 
-Este script em Python verifica quais buckets do Amazon S3 não possuem uma política de lifecycle configurada. É útil para equipes de **FinOps** e **DevOps** que buscam otimizar custos de armazenamento na AWS.
+Este script em Python percorre múltiplas contas AWS (via perfis configurados no AWS CLI) e identifica quais buckets do Amazon S3 **não possuem política de lifecycle configurada**.  
+Ideal para equipes de **FinOps** e **DevOps** que desejam otimizar custos de armazenamento na AWS.
+
+---
 
 ## 🚀 Funcionalidades
 
-- Lista todos os buckets em uma conta AWS.
-- Verifica se cada bucket possui uma política de lifecycle configurada.
-- Retorna uma lista de buckets sem política de lifecycle.
+- Itera sobre múltiplos perfis AWS configurados localmente.
+- Lista todos os buckets S3 por conta.
+- Verifica se cada bucket possui política de lifecycle configurada.
+- Imprime o nome dos buckets sem lifecycle à medida que processa (evitando timeouts).
+- Salva a saída em um arquivo `.csv` no formato CSV, com data e hora no nome.
+
+---
 
 ## 🛠️ Pré-requisitos
 
 1. **Python 3.7 ou superior**.
-2. Instale o AWS CLI e configure um perfil com credenciais:
+2. AWS CLI instalado e perfis configurados:
    ```bash
-   aws configure --profile sandbox
+   aws configure --profile nome-do-perfil
    ```
-3. Instale a biblioteca **boto3**:
+3. Biblioteca `boto3` instalada:
    ```bash
    pip install boto3
    ```
 
+---
+
 ## 📋 Configuração
 
-1. Configure um perfil AWS no seu ambiente usando o **AWS CLI**.
-2. Substitua o nome do perfil no código:
+1. Edite a lista de perfis AWS no script:
    ```python
-   session = boto3.Session(profile_name='sandbox')
+   profiles = ["sandbox", "default", "conta-prod", "conta-dev"]
    ```
+
+2. O script criará automaticamente um arquivo `.txt` com nome no formato:
+   ```
+   buckets_sem_lifecycle_YYYY-MM-DD_HH-MM-SS.txt
+   ```
+
+---
 
 ## 🖥️ Como usar
 
 1. Clone este repositório:
    ```bash
    git clone https://github.com/rendell-arruda/bucket_s3_without_lifecycle
-   cd s3-lifecycle-checker
+   cd bucket_s3_without_lifecycle
    ```
+
 2. Execute o script:
    ```bash
    python main.py
    ```
 
-3. O script exibirá:
-   - A lista de buckets sem política de lifecycle configurada.
-   - Uma mensagem indicando que todos os buckets possuem política, caso aplicável.
+3. O script:
+   - Irá iterar por cada perfil AWS definido.
+   - Imprimirá os buckets sem lifecycle conforme encontra.
+   - Gerará um arquivo `.txt` contendo, para cada conta, os buckets sem lifecycle separados por vírgulas, no estilo CSV.
+
+---
 
 ## 🔑 Permissões necessárias
 
-A conta AWS usada deve possuir as seguintes permissões:
-- `s3:ListAllMyBuckets` – Para listar os buckets.
-- `s3:GetBucketLifecycleConfiguration` – Para verificar a política de lifecycle de cada bucket.
+A conta AWS usada em cada perfil precisa das seguintes permissões:
 
-## 📝 Exemplo de Saída
+- `s3:ListAllMyBuckets` – Para listar todos os buckets da conta.
+- `s3:GetBucketLifecycleConfiguration` – Para verificar se o bucket possui política de lifecycle.
 
-```plaintext
-Buckets sem política de lifecycle:
-- meu-bucket-1
-- meu-bucket-2
-```
-
-Se todos os buckets estiverem configurados:
-```plaintext
-Todos os buckets têm política de lifecycle configurada.
-```
+---
 
 ## 📂 Estrutura do Projeto
 
 ```plaintext
 .
-├── main.py  # Código principal para verificar os buckets
-├── README.md              # Documentação do projeto
+├── main.py            # Script principal
+├── README.md          # Este arquivo
+├── buckets_sem_lifecycle_YYYY-MM-DD_HH-MM-SS.txt  # Saída gerada
 ```
+
+---
+
+## 📌 Exemplo de saída no arquivo `.csv`
+
+```csv
+Conta: sandbox
+bucket-finops-logs, bucket-dados-temp, bucket-relatorios
+
+Conta: default
+bucket-dev, bucket-teste-api
+```
+
+---
 
 ## 🤝 Contribuições
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar PRs.
+Contribuições são bem-vindas!  
+Sinta-se à vontade para abrir issues ou enviar pull requests com melhorias, correções ou sugestões.
+
+---
 
 ## 📜 Licença
 
 Este projeto está licenciado sob a [MIT License](LICENSE).
 
+---
+
 ## 💡 Autor
 
-Desenvolvido por [Rendell Arruda](https://github.com/rendell-arruda).
+Desenvolvido por [Rendell Arruda](https://github.com/rendell-arruda).  
+FinOps Engineer | Automação para Cloud | Otimização de Custos em AWS
 
 ---
 
-**Dica:** Sempre valide o código em um ambiente de teste antes de aplicá-lo na produção.
+> 💡 *Dica:* sempre teste os scripts em ambientes de desenvolvimento antes de aplicá-los em produção.
