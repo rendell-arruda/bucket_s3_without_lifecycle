@@ -1,45 +1,42 @@
 import boto3
 
-profiles= ["sandbox", "default"]
+profiles = ["sandbox", "default"]
 
-def get_buckets_without_lifecycle(session):
+def get_buckets_without_lifecycle(session, profile, output_file):
     s3 = session.client('s3')
-    # buckets_without_lifecycle = []
-
     try:
-        # Lista todos os buckets
         response = s3.list_buckets()
         buckets = response.get('Buckets', [])
-        print(f"Total de buckets encontrados: {len(buckets)}")
-        
+        print(f"Total de buckets encontrados no perfil {profile}: {len(buckets)}")
+
+        output_file.write(f"Perfil: {profile}\n")
+
+        primeiro = True
+        encontrou = False
+
         for bucket in buckets:
             bucket_name = bucket['Name']
             try:
-                # Verifica a política de lifecycle do bucket
                 s3.get_bucket_lifecycle_configuration(Bucket=bucket_name)
             except s3.exceptions.ClientError as e:
-                # Adiciona o bucket à lista se não houver política de lifecycle
                 if e.response['Error']['Code'] == 'NoSuchLifecycleConfiguration':
-                    print(bucket_name, end=',')
-                    # buckets_without_lifecycle.append(bucket_name)
+                    print(bucket_name)
+                    encontrou = True
+                    if not primeiro:
+                        output_file.write(",")
+                    output_file.write(bucket_name)
+                    primeiro = False
+
+        if not encontrou:
+            output_file.write("Nenhum bucket sem lifecycle")
+
+        output_file.write("\n\n")  # Separador entre perfis
+
     except Exception as e:
-        print(f"Erro ao listar buckets: {e}")
+        print(f"Erro ao processar perfil {profile}: {e}")
 
-    # return buckets_without_lifecycle
-
-for profile in profiles:
-    print("\n")
-    print(f"Verificando perfil: {profile}")
-    session = boto3.Session(profile_name=profile)
-    buckets = get_buckets_without_lifecycle(session)
-    
-    # if buckets:
-    #     print("Buckets sem política de lifecycle:")
-    #     for bucket in buckets:
-    #         print(f"- {bucket}")
-    # else:
-    #     print("Todos os buckets têm política de lifecycle configurada.")
-    
-    
-# if __name__ == '__main__':
-#     get_buckets_without_lifecycle()
+with open("buckets_sem_lifecycle.csv", "w") as output_file:
+    for profile in profiles:
+        print(f"\nVerificando perfil: {profile}")
+        session = boto3.Session(profile_name=profile)
+        get_buckets_without_lifecycle(session, profile, output_file)
