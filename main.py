@@ -1,4 +1,5 @@
 import boto3  # Importa a biblioteca Boto3 para interagir com os serviços da AWS
+from datetime import datetime  # Para pegar a data atual
 
 # Lista dos perfis (nomes das credenciais configuradas no ~/.aws/credentials)
 profiles = ["sandbox", "default"]
@@ -14,7 +15,7 @@ def get_buckets_without_lifecycle(session, profile, output_file):
         print(f"Total de buckets encontrados no perfil {profile}: {len(buckets)}")
 
         # Escreve o nome do perfil no arquivo de saída
-        output_file.write(f"Perfil: {profile}\n")
+        output_file.write(f"Conta: {profile}\n")
 
         primeiro = True         # Variável para controlar se é o primeiro bucket (evita vírgula no início)
         encontrou = False       # Marca se encontrou algum bucket sem lifecycle
@@ -25,6 +26,7 @@ def get_buckets_without_lifecycle(session, profile, output_file):
             try:
                 # Tenta buscar a configuração de lifecycle do bucket
                 s3.get_bucket_lifecycle_configuration(Bucket=bucket_name)
+                
             except s3.exceptions.ClientError as e:
                 # Se o bucket **não tiver** lifecycle, o erro será NoSuchLifecycleConfiguration
                 if e.response['Error']['Code'] == 'NoSuchLifecycleConfiguration':
@@ -48,8 +50,13 @@ def get_buckets_without_lifecycle(session, profile, output_file):
         # Em caso de erro ao listar os buckets da conta, mostra mensagem no terminal
         print(f"Erro ao processar perfil {profile}: {e}")
 
+# Pega a data atual no formato YYYY-MM-DD_HH:MM:SS
+data_atual = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+# Define o nome do arquivo com data
+nome_arquivo = f"buckets_sem_lifecycle_{data_atual}.csv"
+
 # Abre (ou cria) o arquivo de saída onde os resultados serão salvos
-with open("buckets_sem_lifecycle.txt", "w") as output_file:
+with open(nome_arquivo, "w") as output_file:
     for profile in profiles:
         print(f"\nVerificando perfil: {profile}")
         # Cria uma sessão boto3 para o profile atual
