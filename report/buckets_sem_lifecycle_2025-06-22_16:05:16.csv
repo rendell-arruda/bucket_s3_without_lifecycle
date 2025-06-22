@@ -1,0 +1,6 @@
+Conta: default
+bucket-sem-politica1, bucket-sem-politica2, vt.terraform.remote.state
+
+Conta: secundaria
+bucket-sem-politica-conta-secundaria1, bucket-sem-politica-conta-secundaria1.1, bucket-sem-politica-conta-secundaria2, bucket-sem-politica-conta-secundaria2.1
+
