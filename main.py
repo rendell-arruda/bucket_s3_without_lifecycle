@@ -1,26 +1,34 @@
-import boto3  # Importa a biblioteca Boto3 para interagir com os serviços da AWS
-from datetime import datetime  # Para pegar a data atual
+import threading
+import concurrent.futures
+from boto3 import Session
+from datetime import datetime
+
+#Garantindo uma escrita thread-safe no arquivo de saída
+file_lock = threading.Lock()
 
 # Lista dos perfis (nomes das credenciais configuradas no ~/.aws/credentials)
-profiles = ["sandbox", "default"]
+AWS_PROFILES = ["secundaria", "default"]
+data_atual = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 
-# Função que verifica buckets sem lifecycle para um determinado profile
-def get_buckets_without_lifecycle(session, profile, output_file):
-    s3 = session.client('s3')  # Cria um cliente S3 usando a sessão da conta atual
+def get_buckets_without_lifecycle(profile, output_file):
+    """
+    Em um ambiente Lambda real, você geralmente usaria roles e não perfis estáticos.
+    Para testar localmente com perfis, use boto3.Session(profile_name=profile_name).
+    Para implantação em Lambda, a role associada à função Lambda deve ter permissão para assumir roles nas contas que você quer acessar.
+    """
+
+    #Garantindo as credenciais corretas para o perfil  
+    session = Session(profile_name=profile)
+    s3 = session.client('s3') 
 
     try:
-        # Lista todos os buckets da conta atual
         response = s3.list_buckets()
         buckets = response.get('Buckets', [])
         print(f"Total de buckets encontrados no perfil {profile}: {len(buckets)}")
 
-        # Escreve o nome do perfil no arquivo de saída
-        output_file.write(f"Conta: {profile}\n")
-
-        primeiro = True         # Variável para controlar se é o primeiro bucket (evita vírgula no início)
-        encontrou = False       # Marca se encontrou algum bucket sem lifecycle
-
-        # Loop por cada bucket da conta
+        #Gera a lista de buckets sem lifecycle
+        buckets_without_lifecycle = []
+        
         for bucket in buckets:
             bucket_name = bucket['Name']
             try:
@@ -30,36 +38,49 @@ def get_buckets_without_lifecycle(session, profile, output_file):
             except s3.exceptions.ClientError as e:
                 # Se o bucket **não tiver** lifecycle, o erro será NoSuchLifecycleConfiguration
                 if e.response['Error']['Code'] == 'NoSuchLifecycleConfiguration':
-                    print(bucket_name)       # Mostra o bucket no terminal
-                    encontrou = True         # Sinaliza que encontrou bucket sem lifecycle
+                    print(bucket_name)  
+                    buckets_without_lifecycle.append(bucket_name)       # Depois do primeiro, os próximos recebem vírgula antes
 
-                    # Escreve vírgula antes dos próximos buckets (evita no primeiro)
-                    if not primeiro:
-                        output_file.write(",")
-                    output_file.write(bucket_name)
-                    primeiro = False         # Depois do primeiro, os próximos recebem vírgula antes
-
-        # Se nenhum bucket sem lifecycle foi encontrado, escreve uma mensagem padrão
-        if not encontrou:
-            output_file.write("Nenhum bucket sem lifecycle")
-
-        # Pula duas linhas no arquivo para separar os perfis
-        output_file.write("\n\n")
-
+        # Agora, escreve os resultados no arquivo de forma thread-safe
+        with file_lock:
+            with open(output_file, "a") as file:
+                file.write(f"Conta: {profile}\n")
+                if buckets_without_lifecycle:
+                    file.write(", ".join(buckets_without_lifecycle))
+                else:
+                    file.write("Nenhum bucket sem lifecycle")
+                file.write("\n\n")
+                
     except Exception as e:
         # Em caso de erro ao listar os buckets da conta, mostra mensagem no terminal
         print(f"Erro ao processar perfil {profile}: {e}")
+        with file_lock:
+            with open(output_file, 'a') as file:
+                file.write(f"Conta: {profile}\n")
+                file.write(f"ERRO: {e}\n\n")
 
-# Pega a data atual no formato YYYY-MM-DD_HH:MM:SS
-data_atual = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-# Define o nome do arquivo com data
-nome_arquivo = f"buckets_sem_lifecycle_{data_atual}.csv"
+def main():
+    print(f"Iniciando verificação em {len(AWS_PROFILES)} perfis...")
 
-# Abre (ou cria) o arquivo de saída onde os resultados serão salvos
-with open(nome_arquivo, "w") as output_file:
-    for profile in profiles:
-        print(f"\nVerificando perfil: {profile}")
-        # Cria uma sessão boto3 para o profile atual
-        session = boto3.Session(profile_name=profile)
-        # Executa a função de verificação para esse profile
-        get_buckets_without_lifecycle(session, profile, output_file)
+    max_workers = 5  
+
+    nome_arquivo = f"report/buckets_sem_lifecycle_{data_atual}.csv"
+    
+    # Usando ThreadPoolExecutor para paralelizar chamadas de API (I/O bound) e executa em paralelo. 'as_completed' retorna os resultados à medida que ficam prontos.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_profile = {
+            executor.submit(get_buckets_without_lifecycle, profile,nome_arquivo): profile for profile in AWS_PROFILES
+        }
+        
+        for future in concurrent.futures.as_completed(future_to_profile):
+            profile = future_to_profile[future]
+            try:
+                future.result()
+                print(f"Resultado para {profile} concluido")
+            except Exception as exc:
+                print(f"'{profile}' gerou uma exceção: {exc}")
+    
+    print(f"Verificação concluída. Resultados salvos em '{nome_arquivo}'.")
+
+if __name__ == "__main__":
+    main()
